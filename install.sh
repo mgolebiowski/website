@@ -9,6 +9,18 @@ cyan="\033[36m"
 white="\033[37m"
 gpg_key=23E7166788B63E1E
 
+get_yarn_version_using_npm() {
+  latest_version=$(npm view yarn@$1 version | tail -n1);
+  if echo $latest_version | grep -oq "'.*'"; then
+    version=$(echo $latest_version | tail -n1 | grep -o "'.*'" | cut -d "'" -f2);
+    echo $version;
+  elif echo $latest_version | grep -qE "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$"; then
+    echo $latest_version;
+  else
+    echo $1;
+  fi
+}
+
 yarn_get_tarball() {
   printf "$cyan> Downloading tarball...$reset\n"
   if [ "$1" = '--nightly' ]; then
@@ -16,14 +28,17 @@ yarn_get_tarball() {
   elif [ "$1" = '--rc' ]; then
     url=https://yarnpkg.com/latest-rc.tar.gz
   elif [ "$1" = '--version' ]; then
-    # Validate that the version matches MAJOR.MINOR.PATCH to avoid garbage-in/garbage-out behavior
-    version=$2
-    if echo $version | grep -qE "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$"; then
-      url="https://yarnpkg.com/downloads/$version/yarn-v$version.tar.gz"
+    if [ -z "$(which npm)" ]; then
+      if echo $version | grep -qE "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$"; then
+        url="https://yarnpkg.com/downloads/$version/yarn-v$version.tar.gz"
+      else
+        printf "$red> Version number must match MAJOR.MINOR.PATCH.$reset\n"
+        exit 1;
+      fi
     else
-      printf "$red> Version number must match MAJOR.MINOR.PATCH.$reset\n"
-      exit 1;
-    fi
+      version=$(get_yarn_version_using_npm $2)
+      url=https://yarnpkg.com/downloads/$version/yarn-v$version.tar.gz
+    fi;
   else
     url=https://yarnpkg.com/latest.tar.gz
   fi
@@ -99,7 +114,7 @@ yarn_link() {
         command printf "$SOURCE_STR" >> "$YARN_PROFILE"
         printf "$cyan> We've added the following to your $YARN_PROFILE\n"
       fi
-      
+
       echo "> If this isn't the profile of your current shell then please add the following to your correct profile:"
       printf "   $SOURCE_STR$reset\n"
     fi
